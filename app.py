@@ -47,3 +47,19 @@ class App(tk.Tk):
         self._build()
         self.protocol('WM_DELETE_WINDOW', self.close)
         self.after(100, self.process_events)
+
+    def _style(self):
+        style = ttk.Style(self)
+        style.theme_use('clam')
+        style.configure('Dark.TCombobox', fieldbackground=FIELD, background=PANEL,
+                        foreground=TEXT, arrowcolor=TEXT, bordercolor=BORDER,
+                        lightcolor=BORDER, darkcolor=BORDER, padding=8,
+                        font=(FONT, 11))
+        style.map('Dark.TCombobox', fieldbackground=[('readonly', FIELD)],
+                  foreground=[('readonly', TEXT)])
+        self.option_add('*TCombobox*Listbox.background', FIELD)
+        self.option_add('*TCombobox*Listbox.foreground', TEXT)
+        self.option_add('*TCombobox*Listbox.selectBackground', ACCENT)
+        style.configure('Pink.Horizontal.TProgressbar', troughcolor=FIELD,
+                        background=PINK, bordercolor=FIELD, lightcolor=PINK,
+                        darkcolor=PINK, thickness=9)
