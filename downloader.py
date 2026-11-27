@@ -112,3 +112,26 @@ def progress_data(data):
     eta = data.get('eta')
     remaining = f'{int(eta)//60:02d}:{int(eta)%60:02d}' if eta is not None and eta >= 0 else '—'
     return fraction, f'{human_size(downloaded)} / {human_size(total)}', (human_size(speed) + '/s') if speed else '—', remaining
+
+
+def download(url, folder, mode, quality, emit, fps="Automático"):
+    """Executa em uma thread; a interface recebe eventos por uma fila."""
+    from yt_dlp import YoutubeDL
+
+    def hook(data):
+        if data.get('status') == 'downloading':
+            emit('progress', progress_data(data))
+        elif data.get('status') == 'finished':
+            emit('stage', 'Finalizando etapa de download…')
+
+    def post_hook(data):
+        if data.get('status') in ('started', 'processing'):
+            emit('stage', 'Processando o arquivo com FFmpeg…')
+
+    opts = make_options(folder, mode, quality, hook, post_hook, fps=fps)
+    emit('stage', 'Buscando informações do vídeo…')
+    with YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(youtube_url(url), download=True)
+        if not info:
+            raise RuntimeError('O vídeo não retornou informações.')
+        emit('done', info.get('title') or 'Vídeo')
