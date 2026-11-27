@@ -238,3 +238,59 @@ class App(tk.Tk):
             download(url, folder, mode, quality, fps=fps, emit=lambda kind, data: self.events.put((kind, data)))
         except Exception as error:
             self.events.put(('error', friendly_error(error)))
+
+    def process_events(self):
+        try:
+            while True:
+                kind, data = self.events.get_nowait()
+                if kind == 'stage':
+                    self.status.set(data)
+                    self.percent.set('—')
+                    self.details.set('Aguarde a próxima etapa.')
+                    self.progress.stop()
+                    self.progress.configure(mode='indeterminate')
+                    self.progress.start(12)
+                elif kind == 'progress':
+                    fraction, size, speed, eta = data
+                    self.status.set('Baixando mídia…')
+                    self.details.set('Progresso da etapa atual (vídeo ou áudio).')
+                    if fraction is not None:
+                        self.progress.stop()
+                        self.progress.configure(mode='determinate', value=fraction * 100)
+                        self.percent.set(f'{fraction * 100:.0f}%')
+                    else:
+                        if str(self.progress['mode']) != 'indeterminate':
+                            self.progress.configure(mode='indeterminate')
+                            self.progress.start(12)
+                        self.percent.set('—')
+                    self.size.set(size)
+                    self.speed.set(speed)
+                    self.eta.set(eta)
+                elif kind in ('done', 'error'):
+                    self.progress.stop()
+                    self.progress.configure(mode='determinate', value=100 if kind == 'done' else 0)
+                    self.set_busy(False)
+                    self.speed.set('—')
+                    self.eta.set('—')
+                    if kind == 'done':
+                        self.status.set('Download concluído!')
+                        self.percent.set('100%')
+                        self.details.set(f'{data} — salvo na pasta escolhida.')
+                    else:
+                        self.status.set('Não foi possível baixar')
+                        self.percent.set('—')
+                        self.details.set('Confira a mensagem de erro e tente novamente.')
+                        messagebox.showerror('Falha no download', data)
+        except queue.Empty:
+            pass
+        self.after(100, self.process_events)
+
+    def close(self):
+        if self.busy:
+            messagebox.showinfo('Download em andamento', 'Aguarde o download terminar antes de fechar o aplicativo.')
+            return
+        self.destroy()
+
+
+if __name__ == '__main__':
+    App().mainloop()
