@@ -37,3 +37,14 @@ def youtube_url(text):
     if not video_id or not VIDEO_ID.fullmatch(video_id):
         raise ValueError("Use o link de um vídeo individual do YouTube, Shorts ou youtu.be.")
     return 'https://www.youtube.com/watch?v=' + video_id
+
+
+def missing_dependencies():
+    missing = []
+    if importlib.util.find_spec('yt_dlp') is None:
+        missing.append('yt-dlp: python -m pip install -r requirements.txt')
+    if not shutil.which('ffmpeg') or not shutil.which('ffprobe'):
+        missing.append('FFmpeg e ffprobe (instale e adicione ao PATH).')
+    if not shutil.which('deno'):
+        missing.append('Deno (instale e adicione ao PATH).')
+    return missing
