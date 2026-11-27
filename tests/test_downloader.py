@@ -1,12 +1,27 @@
 import unittest
 import tempfile
-from downloader import youtube_url, make_options, progress_data, friendly_error
+from downloader import youtube_url, make_options, progress_data, friendly_error, missing_dependencies
 
 ID = 'abcdefghijk'
 CANONICAL = 'https://www.youtube.com/watch?v=' + ID
 
 
 class DownloadTests(unittest.TestCase):
+    def test_missing_dependencies(self):
+        from unittest.mock import patch
+        with patch('downloader.importlib.util.find_spec', return_value=None), \
+                patch('downloader.shutil.which', return_value=None):
+            missing = missing_dependencies()
+            self.assertEqual(len(missing), 3)
+            for name in ('yt-dlp', 'FFmpeg', 'Deno'):
+                self.assertTrue(any(name in message for message in missing))
+
+    def test_installed_dependencies(self):
+        from unittest.mock import patch
+        with patch('downloader.importlib.util.find_spec', return_value=object()), \
+                patch('downloader.shutil.which', return_value='/bin/tool'):
+            self.assertEqual(missing_dependencies(), [])
+
     def test_links(self):
         for link in (CANONICAL, 'youtu.be/' + ID + '?si=123',
                      'https://www.youtube.com/shorts/' + ID,
