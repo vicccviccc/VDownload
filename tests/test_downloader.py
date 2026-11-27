@@ -24,6 +24,15 @@ class DownloadTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     youtube_url(link)
 
+    def test_invalid_ports_and_controls(self):
+        for link in ('https://youtube.com:invalid/watch?v=' + ID,
+                     'https://youtube.com:8080/watch?v=' + ID,
+                     'https://you\ntube.com/watch?v=' + ID,
+                     'https://@youtube.com/watch?v=' + ID):
+            with self.subTest(link=link):
+                with self.assertRaises(ValueError):
+                    youtube_url(link)
+
     def test_mp4_options(self):
         with tempfile.TemporaryDirectory() as folder:
             opts = make_options(folder, 'MP4', '2160p (4K)', None, None)
