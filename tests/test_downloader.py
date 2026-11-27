@@ -74,3 +74,17 @@ class DownloadTests(unittest.TestCase):
                 make_options(folder, 'AVI', '1080p', None, None)
             with self.assertRaises(ValueError):
                 make_options(folder, 'MP4', '9999p', None, None)
+
+    def test_progress_limits(self):
+        self.assertEqual(progress_data({'downloaded_bytes': 250, 'total_bytes': 200})[0], 1.0)
+        self.assertEqual(progress_data({'downloaded_bytes': -1, 'total_bytes': 200})[0], 0.0)
+        self.assertEqual(progress_data({'downloaded_bytes': 50, 'total_bytes_estimate': 100})[0], 0.5)
+
+    def test_progress(self):
+        self.assertEqual(progress_data({'downloaded_bytes': 100, 'total_bytes': 200, 'eta': 65})[0], 0.5)
+        self.assertEqual(progress_data({'eta': 65})[-1], '01:05')
+        self.assertIsNone(progress_data({})[0])
+
+
+if __name__ == '__main__':
+    unittest.main()
