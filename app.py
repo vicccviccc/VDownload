@@ -191,3 +191,19 @@ class App(tk.Tk):
                 subprocess.Popen(['xdg-open', folder])
         except OSError as error:
             messagebox.showerror('Erro', str(error))
+
+    def change_format(self):
+        audio = self.mode.get() == 'MP3'
+        self.combo.configure(values=AUDIO_QUALITIES if audio else VIDEO_QUALITIES)
+        self.quality.set('192 kbps' if audio else '1080p')
+        self.quality_label.configure(text='Qualidade do áudio' if audio else 'Resolução')
+        self.fps_combo.configure(state='disabled' if audio else 'readonly')
+
+    def set_busy(self, busy):
+        self.busy = busy
+        for widget in [self.link_entry, self.paste_button, self.folder_button,
+                       self.download_button, *self.mode_buttons]:
+            widget.configure(state='disabled' if busy else 'normal')
+        self.combo.configure(state='disabled' if busy else 'readonly')
+        self.fps_combo.configure(state='disabled' if busy or self.mode.get() == 'MP3' else 'readonly')
+        self.download_button.configure(text='Baixando…' if busy else 'Baixar arquivo  ↓')
