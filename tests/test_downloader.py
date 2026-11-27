@@ -40,3 +40,14 @@ class DownloadTests(unittest.TestCase):
             self.assertEqual(opts['postprocessors'][0]['preferredquality'], '192')
             with self.assertRaises(ValueError):
                 make_options(folder, 'MP3', '1080p', None, None)
+
+    def test_fps(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for fps, expected in [('30 FPS', '[fps>=29][fps<=30.5]'), ('60 FPS', '[fps>=59][fps<=60.5]')]:
+                opts = make_options(folder, 'MP4', '1080p', None, None, fps=fps)
+                self.assertEqual(opts['format'].count(expected), 2)
+                self.assertEqual(opts['format'].count('[height<=1080]'), 2)
+            self.assertNotIn('[fps', make_options(folder, 'MP4', '1080p', None, None)['format'])
+            self.assertNotIn('[fps', make_options(folder, 'MP3', '192 kbps', None, None, fps='60 FPS')['format'])
+            with self.assertRaises(ValueError):
+                make_options(folder, 'MP4', '1080p', None, None, fps='90 FPS')
