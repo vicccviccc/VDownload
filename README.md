@@ -11,7 +11,25 @@ winget install --id Gyan.FFmpeg -e --source winget
 winget install --id DenoLand.Deno -e --source winget
 ```
 
-Reabra o terminal e execute na pasta do projeto:
+Reabra o terminal e confira se as dependências estão disponíveis:
+
+```powershell
+python --version
+ffmpeg -version
+ffprobe -version
+deno --version
+```
+
+Se algum comando não for reconhecido, verifique a instalação e o PATH do Windows.
+
+Caso ainda não tenha o projeto, faça o download pelo botão **Code → Download ZIP** e extraia os arquivos, ou clone com Git:
+
+```powershell
+git clone https://github.com/vicccviccc/VDownload.git
+cd VDownload
+```
+
+Execute os seguintes comandos na pasta do projeto:
 
 ```powershell
 python -m pip install -U -r requirements.txt
