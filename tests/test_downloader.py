@@ -56,3 +56,21 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(friendly_error('\x1b[31mErro\x1b[0m'), 'Erro')
         self.assertIn('HTTP 403', friendly_error('HTTP Error 403: Forbidden'))
         self.assertIn('FPS', friendly_error('Requested format is not available'))
+
+    def test_embed_and_music_links(self):
+        for link in ('https://www.youtube.com/embed/' + ID,
+                     'https://music.youtube.com/watch?v=' + ID):
+            self.assertEqual(youtube_url(link), CANONICAL)
+
+    def test_invalid_destination(self):
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(ValueError):
+                make_options(Path(folder) / 'inexistente', 'MP4', '1080p', None, None)
+
+    def test_invalid_format_and_quality(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(ValueError):
+                make_options(folder, 'AVI', '1080p', None, None)
+            with self.assertRaises(ValueError):
+                make_options(folder, 'MP4', '9999p', None, None)
