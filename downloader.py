@@ -81,6 +81,12 @@ def make_options(folder, mode, quality, progress_hook, post_hook, fps="Automáti
         if quality not in VIDEO_QUALITIES:
             raise ValueError('Qualidade de vídeo inválida.')
         limit = '' if quality == VIDEO_QUALITIES[0] else f'[height<={quality.split("p")[0]}]'
+        if fps not in FPS_OPTIONS:
+            raise ValueError('Taxa de quadros inválida.')
+        # 29.97 e 59.94 também são taxas comuns de vídeo.
+        fps_filter = {'Automático': '', '30 FPS': '[fps>=29][fps<=30.5]',
+                      '60 FPS': '[fps>=59][fps<=60.5]'}[fps]
+        limit += fps_filter
         opts.update(format=f'bv[ext=mp4]{limit}+ba[ext=m4a]/b[ext=mp4]{limit}',
                     merge_output_format='mp4')
     else:
