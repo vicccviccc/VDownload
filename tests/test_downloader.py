@@ -23,3 +23,20 @@ class DownloadTests(unittest.TestCase):
             with self.subTest(link=link):
                 with self.assertRaises(ValueError):
                     youtube_url(link)
+
+    def test_mp4_options(self):
+        with tempfile.TemporaryDirectory() as folder:
+            opts = make_options(folder, 'MP4', '2160p (4K)', None, None)
+            self.assertIn('[height<=2160]', opts['format'])
+            self.assertTrue(opts['noplaylist'])
+            self.assertFalse(opts['overwrites'])
+            self.assertEqual(opts['merge_output_format'], 'mp4')
+            self.assertNotIn('height', make_options(folder, 'MP4', 'Melhor disponível', None, None)['format'])
+
+    def test_mp3_options(self):
+        with tempfile.TemporaryDirectory() as folder:
+            opts = make_options(folder, 'MP3', '192 kbps', None, None)
+            self.assertEqual(opts['postprocessors'][0]['preferredcodec'], 'mp3')
+            self.assertEqual(opts['postprocessors'][0]['preferredquality'], '192')
+            with self.assertRaises(ValueError):
+                make_options(folder, 'MP3', '1080p', None, None)
