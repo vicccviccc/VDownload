@@ -2,6 +2,7 @@
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 import re
+import os
 import math
 import shutil
 import importlib.util
@@ -59,6 +60,8 @@ def make_options(folder, mode, quality, progress_hook, post_hook, fps="Automáti
     folder = Path(folder).expanduser().resolve()
     if not folder.is_dir():
         raise ValueError('Escolha uma pasta de destino existente.')
+    if not os.access(folder, os.W_OK):
+        raise ValueError('A pasta de destino não tem permissão de escrita.')
     opts = {
         'paths': {'home': str(folder)},
         'outtmpl': {'default': '%(title).150B [%(id)s].%(ext)s'},
