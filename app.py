@@ -207,3 +207,34 @@ class App(tk.Tk):
         self.combo.configure(state='disabled' if busy else 'readonly')
         self.fps_combo.configure(state='disabled' if busy or self.mode.get() == 'MP3' else 'readonly')
         self.download_button.configure(text='Baixando…' if busy else 'Baixar arquivo  ↓')
+
+    def start(self):
+        if self.busy:
+            return
+        try:
+            url = youtube_url(self.url.get())
+        except ValueError as error:
+            messagebox.showwarning('Link inválido', str(error))
+            return
+        missing = missing_dependencies()
+        if missing:
+            messagebox.showerror('Dependências pendentes', '\n\n'.join(missing) + '\n\nVeja o README para instalar.')
+            return
+        if not Path(self.folder.get()).is_dir():
+            messagebox.showwarning('Pasta inválida', 'Escolha uma pasta de destino válida.')
+            return
+        self.set_busy(True)
+        self.progress['value'] = 0
+        self.percent.set('—')
+        self.size.set('—')
+        self.speed.set('—')
+        self.eta.set('—')
+        args = url, self.folder.get(), self.mode.get(), self.quality.get(), self.fps.get()
+        threading.Thread(target=self.worker, args=args, daemon=True).start()
+
+    def worker(self, url, folder, mode, quality, fps):
+        # A thread de download nunca altera widgets diretamente.
+        try:
+            download(url, folder, mode, quality, fps=fps, emit=lambda kind, data: self.events.put((kind, data)))
+        except Exception as error:
+            self.events.put(('error', friendly_error(error)))
