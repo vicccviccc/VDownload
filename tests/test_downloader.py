@@ -66,6 +66,12 @@ class DownloadTests(unittest.TestCase):
         self.assertIn('HTTP 403', friendly_error('HTTP Error 403: Forbidden'))
         self.assertIn('FPS', friendly_error('Requested format is not available'))
 
+    def test_network_errors(self):
+        self.assertIn('429', friendly_error('HTTP Error 429: Too Many Requests'))
+        self.assertIn('indisponível', friendly_error('Video unavailable'))
+        self.assertIn('conexão', friendly_error('Connection timed out'))
+        self.assertEqual(friendly_error('erro 14030'), 'erro 14030')
+
     def test_embed_and_music_links(self):
         for link in ('https://www.youtube.com/embed/' + ID,
                      'https://music.youtube.com/watch?v=' + ID):

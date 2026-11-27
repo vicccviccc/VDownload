@@ -153,6 +153,13 @@ def friendly_error(error):
     text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", str(error))
     if "Requested format is not available" in text:
         return "Não há um formato compatível com essa resolução e FPS. Experimente Automático ou outra resolução."
-    if "403" in text:
+    if re.search(r"\b403\b", text):
         return "O servidor recusou o download (HTTP 403). Tente novamente e confira se o yt-dlp está atualizado: python -m pip install -U yt-dlp[default]"
+    lower = text.lower()
+    if re.search(r"\b429\b", text):
+        return "Muitas solicitações ao servidor (HTTP 429). Tente novamente mais tarde."
+    if "private video" in lower or "video unavailable" in lower:
+        return "O vídeo está indisponível ou privado. Verifique o link e as permissões."
+    if "timed out" in lower or "temporary failure in name resolution" in lower:
+        return "Falha de conexão. Verifique sua internet e tente novamente."
     return text
