@@ -48,3 +48,41 @@ def missing_dependencies():
     if not shutil.which('deno'):
         missing.append('Deno (instale e adicione ao PATH).')
     return missing
+
+
+def make_options(folder, mode, quality, progress_hook, post_hook, fps="Automático"):
+    """Escolhe o formato e limita a resolução sem aumentar a qualidade original."""
+    folder = Path(folder).expanduser().resolve()
+    if not folder.is_dir():
+        raise ValueError('Escolha uma pasta de destino existente.')
+    opts = {
+        'paths': {'home': str(folder)},
+        'outtmpl': {'default': '%(title).150B [%(id)s].%(ext)s'},
+        'noplaylist': True,
+        'quiet': True,
+        'no_warnings': True,
+        'windowsfilenames': True,
+        'overwrites': False,
+        'socket_timeout': 25,
+        'retries': 3,
+        'fragment_retries': 5,
+        'nocolor': True,
+        'progress_hooks': [progress_hook],
+        'postprocessor_hooks': [post_hook],
+    }
+    if mode == 'MP3':
+        if quality not in AUDIO_QUALITIES:
+            raise ValueError('Qualidade de áudio inválida.')
+        opts.update(format='bestaudio/best', postprocessors=[{
+            'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3',
+            'preferredquality': quality.split()[0],
+        }])
+    elif mode == 'MP4':
+        if quality not in VIDEO_QUALITIES:
+            raise ValueError('Qualidade de vídeo inválida.')
+        limit = '' if quality == VIDEO_QUALITIES[0] else f'[height<={quality.split("p")[0]}]'
+        opts.update(format=f'bv[ext=mp4]{limit}+ba[ext=m4a]/b[ext=mp4]{limit}',
+                    merge_output_format='mp4')
+    else:
+        raise ValueError('Formato inválido.')
+    return opts
