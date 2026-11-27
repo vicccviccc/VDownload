@@ -2,6 +2,7 @@
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 import re
+import math
 import shutil
 import importlib.util
 
@@ -97,10 +98,18 @@ def make_options(folder, mode, quality, progress_hook, post_hook, fps="Automáti
     return opts
 
 
+def valid_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) and number >= 0 else None
+
+
 def human_size(value):
-    if value is None:
+    n = valid_number(value)
+    if n is None:
         return '—'
-    n = float(value)
     for unit in ('B', 'KB', 'MB', 'GB'):
         if n < 1024 or unit == 'GB':
             return f'{n:.1f} {unit}'
@@ -108,11 +117,11 @@ def human_size(value):
 
 
 def progress_data(data):
-    total = data.get('total_bytes') or data.get('total_bytes_estimate')
-    downloaded = data.get('downloaded_bytes') or 0
+    total = valid_number(data.get('total_bytes')) or valid_number(data.get('total_bytes_estimate'))
+    downloaded = valid_number(data.get('downloaded_bytes')) or 0
     fraction = min(1.0, max(0.0, downloaded / total)) if total else None
-    speed = data.get('speed')
-    eta = data.get('eta')
+    speed = valid_number(data.get('speed'))
+    eta = valid_number(data.get('eta'))
     remaining = f'{int(eta)//60:02d}:{int(eta)%60:02d}' if eta is not None and eta >= 0 else '—'
     return fraction, f'{human_size(downloaded)} / {human_size(total)}', (human_size(speed) + '/s') if speed else '—', remaining
 
