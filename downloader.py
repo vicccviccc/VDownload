@@ -135,3 +135,12 @@ def download(url, folder, mode, quality, emit, fps="Automático"):
         if not info:
             raise RuntimeError('O vídeo não retornou informações.')
         emit('done', info.get('title') or 'Vídeo')
+
+
+def friendly_error(error):
+    text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", str(error))
+    if "Requested format is not available" in text:
+        return "Não há um formato compatível com essa resolução e FPS. Experimente Automático ou outra resolução."
+    if "403" in text:
+        return "O servidor recusou o download (HTTP 403). Tente novamente e confira se o yt-dlp está atualizado: python -m pip install -U yt-dlp[default]"
+    return text
