@@ -51,3 +51,8 @@ class DownloadTests(unittest.TestCase):
             self.assertNotIn('[fps', make_options(folder, 'MP3', '192 kbps', None, None, fps='60 FPS')['format'])
             with self.assertRaises(ValueError):
                 make_options(folder, 'MP4', '1080p', None, None, fps='90 FPS')
+
+    def test_friendly_error(self):
+        self.assertEqual(friendly_error('\x1b[31mErro\x1b[0m'), 'Erro')
+        self.assertIn('HTTP 403', friendly_error('HTTP Error 403: Forbidden'))
+        self.assertIn('FPS', friendly_error('Requested format is not available'))
