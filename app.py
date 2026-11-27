@@ -63,3 +63,22 @@ class App(tk.Tk):
         style.configure('Pink.Horizontal.TProgressbar', troughcolor=FIELD,
                         background=PINK, bordercolor=FIELD, lightcolor=PINK,
                         darkcolor=PINK, thickness=9)
+
+    def label(self, parent, text=None, *, variable=None, size=11, color=TEXT,
+              weight='normal', bg=None, **kwargs):
+        return tk.Label(parent, text=text or '', textvariable=variable,
+                        bg=bg or parent.cget('bg'), fg=color, font=(FONT, size, weight), **kwargs)
+
+    def button(self, parent, text, command, primary=False, **kwargs):
+        return tk.Button(parent, text=text, command=command,
+                         bg=ACCENT if primary else PANEL, fg=BG if primary else TEXT,
+                         activebackground='#C58ADE' if primary else BORDER,
+                         activeforeground=BG if primary else TEXT, disabledforeground='#888d98',
+                         relief='flat', bd=0, padx=18, pady=7, cursor='hand2',
+                         font=(FONT, 11, 'bold'), **kwargs)
+
+    def entry(self, parent, variable, readonly=False):
+        return tk.Entry(parent, textvariable=variable, font=(FONT, 12), bg=FIELD,
+                        fg=TEXT, insertbackground=TEXT, relief='flat', bd=0,
+                        highlightthickness=1, highlightcolor=PINK, highlightbackground=BORDER,
+                        readonlybackground=FIELD, state='readonly' if readonly else 'normal')
