@@ -16,14 +16,17 @@ def youtube_url(text):
     text = text.strip()
     if not text:
         raise ValueError("Cole o link de um vídeo do YouTube.")
+    if any(ord(char) < 32 or ord(char) == 127 for char in text):
+        raise ValueError('O link contém caracteres inválidos.')
     if '://' not in text:
         text = 'https://' + text
     try:
         u = urlsplit(text)
         host = u.hostname
+        port = u.port
     except ValueError:
         raise ValueError("Link inválido.") from None
-    if u.scheme not in ('http', 'https') or u.username or u.password:
+    if u.scheme not in ('http', 'https') or u.username is not None or u.password is not None or port not in (None, 80, 443):
         raise ValueError("Use um link válido do YouTube.")
     parts = u.path.strip('/').split('/')
     video_id = None
