@@ -168,3 +168,26 @@ class App(tk.Tk):
         self.label(bottom, 'Baixe apenas conteúdo autorizado.', color=MUTED, size=9).pack(side='left')
         self.label(bottom, 'Python / yt-dlp', color=MUTED, size=9).pack(side='right')
         self.link_entry.focus_set()
+
+    def paste(self):
+        try:
+            self.url.set(self.clipboard_get().strip())
+        except tk.TclError:
+            messagebox.showinfo('Área de transferência', 'Nenhum texto encontrado.')
+
+    def choose_folder(self):
+        selected = filedialog.askdirectory(initialdir=self.folder.get())
+        if selected:
+            self.folder.set(selected)
+
+    def open_folder(self):
+        folder = self.folder.get()
+        try:
+            if sys.platform == 'win32':
+                os.startfile(folder)
+            elif sys.platform == 'darwin':
+                subprocess.Popen(['open', folder])
+            else:
+                subprocess.Popen(['xdg-open', folder])
+        except OSError as error:
+            messagebox.showerror('Erro', str(error))
