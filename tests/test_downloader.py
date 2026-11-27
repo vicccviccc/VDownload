@@ -83,6 +83,13 @@ class DownloadTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 make_options(Path(folder) / 'inexistente', 'MP4', '1080p', None, None)
 
+    def test_readonly_destination(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as folder:
+            with patch('downloader.os.access', return_value=False):
+                with self.assertRaisesRegex(ValueError, 'permissão'):
+                    make_options(folder, 'MP4', '1080p', None, None)
+
     def test_invalid_format_and_quality(self):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(ValueError):
