@@ -89,6 +89,13 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(progress_data({'downloaded_bytes': -1, 'total_bytes': 200})[0], 0.0)
         self.assertEqual(progress_data({'downloaded_bytes': 50, 'total_bytes_estimate': 100})[0], 0.5)
 
+    def test_invalid_progress_data(self):
+        result = progress_data({'downloaded_bytes': 'oops', 'total_bytes': -10,
+                                'speed': float('inf'), 'eta': float('nan')})
+        self.assertIsNone(result[0])
+        self.assertEqual(result[1], '0.0 B / —')
+        self.assertEqual(result[2:], ('—', '—'))
+
     def test_progress(self):
         self.assertEqual(progress_data({'downloaded_bytes': 100, 'total_bytes': 200, 'eta': 65})[0], 0.5)
         self.assertEqual(progress_data({'eta': 65})[-1], '01:05')
