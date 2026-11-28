@@ -129,23 +129,37 @@ def progress_data(data):
     return fraction, f'{human_size(downloaded)} / {human_size(total)}', (human_size(speed) + '/s') if speed else '—', remaining
 
 
-def download(url, folder, mode, quality, emit, fps="Automático"):
+class DownloadCancelled(Exception):
+    """Cancelamento cooperativo solicitado pela interface."""
+
+
+def check_cancel(cancel_event):
+    if cancel_event is not None and cancel_event.is_set():
+        raise DownloadCancelled('Download cancelado.')
+
+
+def download(url, folder, mode, quality, emit, fps="Automático", cancel_event=None):
     """Executa em uma thread; a interface recebe eventos por uma fila."""
+    check_cancel(cancel_event)
     from yt_dlp import YoutubeDL
 
     def hook(data):
+        check_cancel(cancel_event)
         if data.get('status') == 'downloading':
             emit('progress', progress_data(data))
         elif data.get('status') == 'finished':
             emit('stage', 'Finalizando etapa de download…')
 
     def post_hook(data):
+        if data.get('status') == 'started':
+            check_cancel(cancel_event)
         if data.get('status') in ('started', 'processing'):
             emit('stage', 'Processando o arquivo com FFmpeg…')
 
     opts = make_options(folder, mode, quality, hook, post_hook, fps=fps)
     emit('stage', 'Buscando informações do vídeo…')
     with YoutubeDL(opts) as ydl:
+        check_cancel(cancel_event)
         info = ydl.extract_info(youtube_url(url), download=True)
         if not info:
             raise RuntimeError('O vídeo não retornou informações.')
