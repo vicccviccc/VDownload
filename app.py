@@ -9,7 +9,10 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from downloader import (VIDEO_QUALITIES, AUDIO_QUALITIES, FPS_OPTIONS, friendly_error, youtube_url,
-                        missing_dependencies, download)
+                        missing_dependencies, download, DownloadCancelled)
+
+from storage import LocalStore
+from clipboard_watch import ClipboardWatcher
 
 BG = '#11131B'
 PANEL = '#1B1E29'
@@ -26,16 +29,20 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('VDownload — YouTube')
-        self.geometry('1000x680')
-        self.minsize(900, 650)
+        self.geometry('1000x740')
+        self.minsize(900, 700)
         self.configure(bg=BG)
         self.events = queue.Queue()
         self.busy = False
-        self.mode = tk.StringVar(value='MP4')
-        self.quality = tk.StringVar(value='1080p')
-        self.fps = tk.StringVar(value='Automático')
-        default = Path.home() / 'Downloads'
-        self.folder = tk.StringVar(value=str(default if default.is_dir() else Path.home()))
+        self.cancel_event = threading.Event()
+        self.auto_download = tk.BooleanVar(value=False)
+        self.clipboard_watcher = ClipboardWatcher()
+        self.store = LocalStore()
+        preferences = self.store.preferences()
+        self.mode = tk.StringVar(value=preferences['mode'])
+        self.quality = tk.StringVar(value=preferences['quality'])
+        self.fps = tk.StringVar(value=preferences['fps'])
+        self.folder = tk.StringVar(value=preferences['folder'])
         self.url = tk.StringVar()
         self.status = tk.StringVar(value='Pronto para baixar')
         self.details = tk.StringVar(value='Cole um link para começar.')
@@ -45,8 +52,12 @@ class App(tk.Tk):
         self.eta = tk.StringVar(value='—')
         self._style()
         self._build()
+        self.change_format(reset_quality=False)
+        for variable in (self.mode, self.quality, self.fps, self.folder):
+            variable.trace_add('write', self.save_preferences)
         self.protocol('WM_DELETE_WINDOW', self.close)
         self.after(100, self.process_events)
+        self.after(900, self.poll_clipboard)
 
     def _style(self):
         style = ttk.Style(self)
@@ -92,8 +103,8 @@ class App(tk.Tk):
         brand = tk.Frame(top, bg=BG)
         brand.pack(side='left', padx=12)
         self.label(brand, 'VDownload', size=19, weight='bold').pack(anchor='w')
-        self.label(brand, 'DESKTOP / 2.0', size=9, color=MUTED).pack(anchor='w')
-        self.label(top, 'YouTube · MP4 / MP3', size=10, color=MUTED).pack(side='right')
+        self.label(brand, 'DESKTOP / 2.1', size=9, color=MUTED).pack(anchor='w')
+        self.button(top, 'Histórico', self.show_history).pack(side='right')
         tk.Frame(outer, bg=BORDER, height=1).pack(fill='x', pady=(16, 16))
         self.label(outer, 'Novo download', size=25, weight='bold').pack(anchor='w')
         self.label(outer, 'Configure o arquivo antes de baixar.', color=MUTED).pack(anchor='w', pady=(2, 18))
@@ -145,8 +156,10 @@ class App(tk.Tk):
         self.entry(folder_row, self.folder, readonly=True).pack(side='left', fill='x', expand=True, ipady=8, padx=(0, 8))
         self.folder_button = self.button(folder_row, 'Alterar', self.choose_folder)
         self.folder_button.pack(side='right')
+        self.cancel_button = self.button(card, 'Cancelar download', self.cancel_download, state='disabled')
         self.download_button = self.button(card, 'Baixar arquivo', self.start, primary=True)
-        self.download_button.pack(side='bottom', fill='x', pady=(16, 0), ipady=5)
+        self.download_button.pack(side='bottom', fill='x', pady=(8, 0), ipady=5)
+        self.cancel_button.pack(side='bottom', fill='x', pady=(12, 0))
         progress_panel = tk.Frame(body, bg=PANEL, padx=19, pady=18, highlightthickness=1, highlightbackground=BORDER)
         progress_panel.grid(row=0, column=1, sticky='nsew')
         self.label(progress_panel, 'ATIVIDADE', color=PINK, weight='bold', size=10).pack(anchor='w')
@@ -166,8 +179,75 @@ class App(tk.Tk):
         bottom = tk.Frame(outer, bg=BG)
         bottom.pack(fill='x', pady=(16, 0))
         self.label(bottom, 'Baixe apenas conteúdo autorizado.', color=MUTED, size=9).pack(side='left')
-        self.label(bottom, 'Python / yt-dlp', color=MUTED, size=9).pack(side='right')
+        tk.Checkbutton(bottom, text='Baixar links copiados automaticamente', variable=self.auto_download,
+                       command=self.toggle_auto_download, bg=BG, fg=MUTED, selectcolor=FIELD,
+                       activebackground=BG, activeforeground=TEXT, font=(FONT, 9)).pack(side='right')
         self.link_entry.focus_set()
+
+    def show_history(self):
+        window = tk.Toplevel(self)
+        window.title('Histórico de downloads')
+        window.geometry('740x400')
+        window.configure(bg=BG)
+        frame = tk.Frame(window, bg=BG, padx=20, pady=20)
+        frame.pack(fill='both', expand=True)
+        self.label(frame, 'Downloads concluídos', size=18, weight='bold').pack(anchor='w')
+        listing = tk.Listbox(frame, bg=FIELD, fg=TEXT, selectbackground=BORDER,
+                             font=(FONT, 11), relief='flat', activestyle='none')
+        listing.pack(fill='both', expand=True, pady=12)
+        entries = self.store.history()
+        for entry in entries:
+            listing.insert('end', f"{entry['date'][:10]}  |  {entry['mode']}  |  {entry['title']}")
+        if not entries:
+            listing.insert('end', 'Nenhum download concluído ainda.')
+        actions = tk.Frame(frame, bg=BG)
+        actions.pack(fill='x')
+        def reuse():
+            selected = listing.curselection()
+            if not entries or not selected or self.busy:
+                return
+            self.url.set(entries[selected[0]]['url'])
+            window.destroy()
+            self.link_entry.focus_set()
+        def clear():
+            if not messagebox.askyesno('Histórico', 'Apagar o histórico local?', parent=window):
+                return
+            if self.store.clear_history():
+                entries.clear()
+                listing.delete(0, 'end')
+                listing.insert('end', 'Nenhum download concluído ainda.')
+            else:
+                messagebox.showerror('Histórico', 'Não foi possível apagar o histórico.', parent=window)
+        self.button(actions, 'Reutilizar link', reuse).pack(side='left')
+        self.button(actions, 'Limpar histórico', clear).pack(side='right')
+        listing.bind('<Double-Button-1>', lambda _event: reuse())
+
+    def clipboard_text(self):
+        try:
+            return self.clipboard_get()
+        except tk.TclError:
+            return None
+
+    def toggle_auto_download(self):
+        if not self.auto_download.get():
+            self.clipboard_watcher.reset(None)
+            return
+        self.auto_download.set(False)
+        if not messagebox.askyesno('Downloads automáticos',
+                'Novos links de vídeos do YouTube copiados serão baixados com as opções atuais. '
+                'Ative apenas para conteúdo autorizado. Continuar?'):
+            self.auto_download.set(False)
+            return
+        self.clipboard_watcher.reset(self.clipboard_text())
+        self.auto_download.set(True)
+
+    def poll_clipboard(self):
+        if self.auto_download.get():
+            url = self.clipboard_watcher.observe(self.clipboard_text(), busy=self.busy)
+            if url:
+                self.url.set(url)
+                self.start()
+        self.after(900, self.poll_clipboard)
 
     def paste(self):
         try:
@@ -192,10 +272,15 @@ class App(tk.Tk):
         except OSError as error:
             messagebox.showerror('Erro', str(error))
 
-    def change_format(self):
+    def save_preferences(self, *_args):
+        self.store.save_preferences({key: getattr(self, key).get()
+                                     for key in ('mode', 'quality', 'fps', 'folder')})
+
+    def change_format(self, reset_quality=True):
         audio = self.mode.get() == 'MP3'
         self.combo.configure(values=AUDIO_QUALITIES if audio else VIDEO_QUALITIES)
-        self.quality.set('192 kbps' if audio else '1080p')
+        if reset_quality:
+            self.quality.set('192 kbps' if audio else '1080p')
         self.quality_label.configure(text='Qualidade do áudio' if audio else 'Resolução')
         self.fps_combo.configure(state='disabled' if audio else 'readonly')
 
@@ -206,7 +291,8 @@ class App(tk.Tk):
             widget.configure(state='disabled' if busy else 'normal')
         self.combo.configure(state='disabled' if busy else 'readonly')
         self.fps_combo.configure(state='disabled' if busy or self.mode.get() == 'MP3' else 'readonly')
-        self.download_button.configure(text='Baixando…' if busy else 'Baixar arquivo  ↓')
+        self.download_button.configure(text='Baixando…' if busy else 'Baixar arquivo')
+        self.cancel_button.configure(state='normal' if busy else 'disabled')
 
     def start(self):
         if self.busy:
@@ -223,6 +309,7 @@ class App(tk.Tk):
         if not Path(self.folder.get()).is_dir():
             messagebox.showwarning('Pasta inválida', 'Escolha uma pasta de destino válida.')
             return
+        self.cancel_event.clear()
         self.set_busy(True)
         self.progress['value'] = 0
         self.percent.set('—')
@@ -230,19 +317,33 @@ class App(tk.Tk):
         self.speed.set('—')
         self.eta.set('—')
         args = url, self.folder.get(), self.mode.get(), self.quality.get(), self.fps.get()
+        self.active_download = args
         threading.Thread(target=self.worker, args=args, daemon=True).start()
+
+    def cancel_download(self):
+        if self.busy:
+            self.cancel_event.set()
+            self.cancel_button.configure(state='disabled')
+            self.status.set('Cancelando download…')
+            self.details.set('Aguardando a etapa atual terminar.')
 
     def worker(self, url, folder, mode, quality, fps):
         # A thread de download nunca altera widgets diretamente.
         try:
-            download(url, folder, mode, quality, fps=fps, emit=lambda kind, data: self.events.put((kind, data)))
+            download(url, folder, mode, quality, fps=fps, cancel_event=self.cancel_event,
+                     emit=lambda kind, data: self.events.put((kind, data)))
+        except DownloadCancelled:
+            self.events.put(('cancelled', None))
         except Exception as error:
-            self.events.put(('error', friendly_error(error)))
+            self.events.put(('cancelled', None) if self.cancel_event.is_set()
+                            else ('error', friendly_error(error)))
 
     def process_events(self):
         try:
             while True:
                 kind, data = self.events.get_nowait()
+                if self.cancel_event.is_set() and kind in ('stage', 'progress'):
+                    continue
                 if kind == 'stage':
                     self.status.set(data)
                     self.percent.set('—')
@@ -266,7 +367,7 @@ class App(tk.Tk):
                     self.size.set(size)
                     self.speed.set(speed)
                     self.eta.set(eta)
-                elif kind in ('done', 'error'):
+                elif kind in ('done', 'error', 'cancelled'):
                     self.progress.stop()
                     self.progress.configure(mode='determinate', value=100 if kind == 'done' else 0)
                     self.set_busy(False)
@@ -276,6 +377,13 @@ class App(tk.Tk):
                         self.status.set('Download concluído!')
                         self.percent.set('100%')
                         self.details.set(f'{data} — salvo na pasta escolhida.')
+                        url, folder, mode, quality, _fps = self.active_download
+                        if not self.store.record(data, url, mode, quality, folder):
+                            self.details.set(f'{data} — salvo, mas o histórico não pôde ser gravado.')
+                    elif kind == 'cancelled':
+                        self.status.set('Download cancelado')
+                        self.percent.set('—')
+                        self.details.set('Arquivos parciais podem permanecer para retomar depois.')
                     else:
                         self.status.set('Não foi possível baixar')
                         self.percent.set('—')

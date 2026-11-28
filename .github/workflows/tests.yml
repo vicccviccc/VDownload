@@ -15,5 +15,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: python -m py_compile app.py downloader.py
+      - run: python -m py_compile app.py downloader.py storage.py clipboard_watch.py
       - run: python -m unittest discover -s tests -v

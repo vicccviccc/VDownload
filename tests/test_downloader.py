@@ -1,12 +1,50 @@
 import unittest
 import tempfile
-from downloader import youtube_url, make_options, progress_data, friendly_error, missing_dependencies
+from downloader import youtube_url, make_options, progress_data, friendly_error, missing_dependencies, download, DownloadCancelled
 
 ID = 'abcdefghijk'
 CANONICAL = 'https://www.youtube.com/watch?v=' + ID
 
 
 class DownloadTests(unittest.TestCase):
+    def test_cancel_before_start(self):
+        from threading import Event
+        event = Event()
+        event.set()
+        with self.assertRaises(DownloadCancelled):
+            download(CANONICAL, '.', 'MP4', '1080p', lambda *_: None,
+                     cancel_event=event)
+
+    def test_cancel_during_download(self):
+        import sys
+        from types import SimpleNamespace
+        from threading import Event
+        from unittest.mock import patch
+        event = Event()
+        received = []
+
+        class FakeYoutubeDL:
+            def __init__(self, options):
+                self.options = options
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def extract_info(self, url, download=True):
+                event.set()
+                self.options['progress_hooks'][0]({'status': 'downloading'})
+                return {'title': 'Teste'}
+
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.dict(sys.modules, {'yt_dlp': SimpleNamespace(YoutubeDL=FakeYoutubeDL)}):
+                with self.assertRaises(DownloadCancelled):
+                    download(CANONICAL, folder, 'MP4', '1080p',
+                             lambda *args: received.append(args), cancel_event=event)
+        self.assertFalse(any(kind == 'done' for kind, _ in received))
+
     def test_missing_dependencies(self):
         from unittest.mock import patch
         with patch('downloader.importlib.util.find_spec', return_value=None), \
