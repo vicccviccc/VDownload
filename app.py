@@ -99,7 +99,7 @@ class App(tk.Tk):
         brand.pack(side='left', padx=12)
         self.label(brand, 'VDownload', size=19, weight='bold').pack(anchor='w')
         self.label(brand, 'DESKTOP / 2.0', size=9, color=MUTED).pack(anchor='w')
-        self.label(top, 'YouTube · MP4 / MP3', size=10, color=MUTED).pack(side='right')
+        self.button(top, 'Histórico', self.show_history).pack(side='right')
         tk.Frame(outer, bg=BORDER, height=1).pack(fill='x', pady=(16, 16))
         self.label(outer, 'Novo download', size=25, weight='bold').pack(anchor='w')
         self.label(outer, 'Configure o arquivo antes de baixar.', color=MUTED).pack(anchor='w', pady=(2, 18))
@@ -175,6 +175,44 @@ class App(tk.Tk):
         self.label(bottom, 'Python / yt-dlp', color=MUTED, size=9).pack(side='right')
         self.link_entry.focus_set()
 
+    def show_history(self):
+        window = tk.Toplevel(self)
+        window.title('Histórico de downloads')
+        window.geometry('740x400')
+        window.configure(bg=BG)
+        frame = tk.Frame(window, bg=BG, padx=20, pady=20)
+        frame.pack(fill='both', expand=True)
+        self.label(frame, 'Downloads concluídos', size=18, weight='bold').pack(anchor='w')
+        listing = tk.Listbox(frame, bg=FIELD, fg=TEXT, selectbackground=BORDER,
+                             font=(FONT, 11), relief='flat', activestyle='none')
+        listing.pack(fill='both', expand=True, pady=12)
+        entries = self.store.history()
+        for entry in entries:
+            listing.insert('end', f"{entry['date'][:10]}  |  {entry['mode']}  |  {entry['title']}")
+        if not entries:
+            listing.insert('end', 'Nenhum download concluído ainda.')
+        actions = tk.Frame(frame, bg=BG)
+        actions.pack(fill='x')
+        def reuse():
+            selected = listing.curselection()
+            if not entries or not selected or self.busy:
+                return
+            self.url.set(entries[selected[0]]['url'])
+            window.destroy()
+            self.link_entry.focus_set()
+        def clear():
+            if not messagebox.askyesno('Histórico', 'Apagar o histórico local?', parent=window):
+                return
+            if self.store.clear_history():
+                entries.clear()
+                listing.delete(0, 'end')
+                listing.insert('end', 'Nenhum download concluído ainda.')
+            else:
+                messagebox.showerror('Histórico', 'Não foi possível apagar o histórico.', parent=window)
+        self.button(actions, 'Reutilizar link', reuse).pack(side='left')
+        self.button(actions, 'Limpar histórico', clear).pack(side='right')
+        listing.bind('<Double-Button-1>', lambda _event: reuse())
+
     def paste(self):
         try:
             self.url.set(self.clipboard_get().strip())
@@ -241,6 +279,7 @@ class App(tk.Tk):
         self.speed.set('—')
         self.eta.set('—')
         args = url, self.folder.get(), self.mode.get(), self.quality.get(), self.fps.get()
+        self.active_download = args
         threading.Thread(target=self.worker, args=args, daemon=True).start()
 
     def worker(self, url, folder, mode, quality, fps):
@@ -287,6 +326,9 @@ class App(tk.Tk):
                         self.status.set('Download concluído!')
                         self.percent.set('100%')
                         self.details.set(f'{data} — salvo na pasta escolhida.')
+                        url, folder, mode, quality, _fps = self.active_download
+                        if not self.store.record(data, url, mode, quality, folder):
+                            self.details.set(f'{data} — salvo, mas o histórico não pôde ser gravado.')
                     else:
                         self.status.set('Não foi possível baixar')
                         self.percent.set('—')
