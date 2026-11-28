@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from downloader import (VIDEO_QUALITIES, AUDIO_QUALITIES, FPS_OPTIONS, friendly_error, youtube_url,
-                        missing_dependencies, download)
+                        missing_dependencies, download, DownloadCancelled)
 
 from storage import LocalStore
 
@@ -33,6 +33,7 @@ class App(tk.Tk):
         self.configure(bg=BG)
         self.events = queue.Queue()
         self.busy = False
+        self.cancel_event = threading.Event()
         self.store = LocalStore()
         preferences = self.store.preferences()
         self.mode = tk.StringVar(value=preferences['mode'])
@@ -151,8 +152,10 @@ class App(tk.Tk):
         self.entry(folder_row, self.folder, readonly=True).pack(side='left', fill='x', expand=True, ipady=8, padx=(0, 8))
         self.folder_button = self.button(folder_row, 'Alterar', self.choose_folder)
         self.folder_button.pack(side='right')
+        self.cancel_button = self.button(card, 'Cancelar download', self.cancel_download, state='disabled')
         self.download_button = self.button(card, 'Baixar arquivo', self.start, primary=True)
-        self.download_button.pack(side='bottom', fill='x', pady=(16, 0), ipady=5)
+        self.download_button.pack(side='bottom', fill='x', pady=(8, 0), ipady=5)
+        self.cancel_button.pack(side='bottom', fill='x', pady=(12, 0))
         progress_panel = tk.Frame(body, bg=PANEL, padx=19, pady=18, highlightthickness=1, highlightbackground=BORDER)
         progress_panel.grid(row=0, column=1, sticky='nsew')
         self.label(progress_panel, 'ATIVIDADE', color=PINK, weight='bold', size=10).pack(anchor='w')
@@ -255,7 +258,8 @@ class App(tk.Tk):
             widget.configure(state='disabled' if busy else 'normal')
         self.combo.configure(state='disabled' if busy else 'readonly')
         self.fps_combo.configure(state='disabled' if busy or self.mode.get() == 'MP3' else 'readonly')
-        self.download_button.configure(text='Baixando…' if busy else 'Baixar arquivo  ↓')
+        self.download_button.configure(text='Baixando…' if busy else 'Baixar arquivo')
+        self.cancel_button.configure(state='normal' if busy else 'disabled')
 
     def start(self):
         if self.busy:
@@ -272,6 +276,7 @@ class App(tk.Tk):
         if not Path(self.folder.get()).is_dir():
             messagebox.showwarning('Pasta inválida', 'Escolha uma pasta de destino válida.')
             return
+        self.cancel_event.clear()
         self.set_busy(True)
         self.progress['value'] = 0
         self.percent.set('—')
@@ -282,17 +287,30 @@ class App(tk.Tk):
         self.active_download = args
         threading.Thread(target=self.worker, args=args, daemon=True).start()
 
+    def cancel_download(self):
+        if self.busy:
+            self.cancel_event.set()
+            self.cancel_button.configure(state='disabled')
+            self.status.set('Cancelando download…')
+            self.details.set('Aguardando a etapa atual terminar.')
+
     def worker(self, url, folder, mode, quality, fps):
         # A thread de download nunca altera widgets diretamente.
         try:
-            download(url, folder, mode, quality, fps=fps, emit=lambda kind, data: self.events.put((kind, data)))
+            download(url, folder, mode, quality, fps=fps, cancel_event=self.cancel_event,
+                     emit=lambda kind, data: self.events.put((kind, data)))
+        except DownloadCancelled:
+            self.events.put(('cancelled', None))
         except Exception as error:
-            self.events.put(('error', friendly_error(error)))
+            self.events.put(('cancelled', None) if self.cancel_event.is_set()
+                            else ('error', friendly_error(error)))
 
     def process_events(self):
         try:
             while True:
                 kind, data = self.events.get_nowait()
+                if self.cancel_event.is_set() and kind in ('stage', 'progress'):
+                    continue
                 if kind == 'stage':
                     self.status.set(data)
                     self.percent.set('—')
@@ -316,7 +334,7 @@ class App(tk.Tk):
                     self.size.set(size)
                     self.speed.set(speed)
                     self.eta.set(eta)
-                elif kind in ('done', 'error'):
+                elif kind in ('done', 'error', 'cancelled'):
                     self.progress.stop()
                     self.progress.configure(mode='determinate', value=100 if kind == 'done' else 0)
                     self.set_busy(False)
@@ -329,6 +347,10 @@ class App(tk.Tk):
                         url, folder, mode, quality, _fps = self.active_download
                         if not self.store.record(data, url, mode, quality, folder):
                             self.details.set(f'{data} — salvo, mas o histórico não pôde ser gravado.')
+                    elif kind == 'cancelled':
+                        self.status.set('Download cancelado')
+                        self.percent.set('—')
+                        self.details.set('Arquivos parciais podem permanecer para retomar depois.')
                     else:
                         self.status.set('Não foi possível baixar')
                         self.percent.set('—')
