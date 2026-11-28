@@ -78,3 +78,37 @@ class LocalStore:
 
     def save_preferences(self, values):
         return write_json(self.directory / 'preferences.json', normalize_preferences(values))
+
+    def history(self):
+        raw = read_json(self.directory / 'history.json', [])
+        if not isinstance(raw, list):
+            return []
+        entries = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            keys = ('title', 'url', 'mode', 'quality', 'folder', 'date')
+            if not all(isinstance(item.get(key), str) for key in keys):
+                continue
+            if item['mode'] not in ('MP3', 'MP4'):
+                continue
+            try:
+                url = youtube_url(item['url'])
+            except ValueError:
+                continue
+            entries.append({**{key: item[key] for key in keys}, 'url': url})
+            if len(entries) >= MAX_HISTORY:
+                break
+        return entries
+
+    def record(self, title, url, mode, quality, folder):
+        entry = {
+            'title': str(title), 'url': youtube_url(url), 'mode': mode,
+            'quality': quality, 'folder': str(folder),
+            'date': datetime.now().astimezone().isoformat(timespec='seconds'),
+        }
+        return write_json(self.directory / 'history.json',
+                          [entry, *self.history()][:MAX_HISTORY])
+
+    def clear_history(self):
+        return write_json(self.directory / 'history.json', [])
