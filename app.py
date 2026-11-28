@@ -232,12 +232,14 @@ class App(tk.Tk):
         if not self.auto_download.get():
             self.clipboard_watcher.reset(None)
             return
+        self.auto_download.set(False)
         if not messagebox.askyesno('Downloads automáticos',
                 'Novos links de vídeos do YouTube copiados serão baixados com as opções atuais. '
                 'Ative apenas para conteúdo autorizado. Continuar?'):
             self.auto_download.set(False)
             return
         self.clipboard_watcher.reset(self.clipboard_text())
+        self.auto_download.set(True)
 
     def poll_clipboard(self):
         if self.auto_download.get():
