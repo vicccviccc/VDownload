@@ -12,6 +12,7 @@ from downloader import (VIDEO_QUALITIES, AUDIO_QUALITIES, FPS_OPTIONS, friendly_
                         missing_dependencies, download, DownloadCancelled)
 
 from storage import LocalStore
+from clipboard_watch import ClipboardWatcher
 
 BG = '#11131B'
 PANEL = '#1B1E29'
@@ -28,12 +29,14 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('VDownload — YouTube')
-        self.geometry('1000x680')
-        self.minsize(900, 650)
+        self.geometry('1000x740')
+        self.minsize(900, 700)
         self.configure(bg=BG)
         self.events = queue.Queue()
         self.busy = False
         self.cancel_event = threading.Event()
+        self.auto_download = tk.BooleanVar(value=False)
+        self.clipboard_watcher = ClipboardWatcher()
         self.store = LocalStore()
         preferences = self.store.preferences()
         self.mode = tk.StringVar(value=preferences['mode'])
@@ -54,6 +57,7 @@ class App(tk.Tk):
             variable.trace_add('write', self.save_preferences)
         self.protocol('WM_DELETE_WINDOW', self.close)
         self.after(100, self.process_events)
+        self.after(900, self.poll_clipboard)
 
     def _style(self):
         style = ttk.Style(self)
@@ -175,7 +179,9 @@ class App(tk.Tk):
         bottom = tk.Frame(outer, bg=BG)
         bottom.pack(fill='x', pady=(16, 0))
         self.label(bottom, 'Baixe apenas conteúdo autorizado.', color=MUTED, size=9).pack(side='left')
-        self.label(bottom, 'Python / yt-dlp', color=MUTED, size=9).pack(side='right')
+        tk.Checkbutton(bottom, text='Baixar links copiados automaticamente', variable=self.auto_download,
+                       command=self.toggle_auto_download, bg=BG, fg=MUTED, selectcolor=FIELD,
+                       activebackground=BG, activeforeground=TEXT, font=(FONT, 9)).pack(side='right')
         self.link_entry.focus_set()
 
     def show_history(self):
@@ -215,6 +221,31 @@ class App(tk.Tk):
         self.button(actions, 'Reutilizar link', reuse).pack(side='left')
         self.button(actions, 'Limpar histórico', clear).pack(side='right')
         listing.bind('<Double-Button-1>', lambda _event: reuse())
+
+    def clipboard_text(self):
+        try:
+            return self.clipboard_get()
+        except tk.TclError:
+            return None
+
+    def toggle_auto_download(self):
+        if not self.auto_download.get():
+            self.clipboard_watcher.reset(None)
+            return
+        if not messagebox.askyesno('Downloads automáticos',
+                'Novos links de vídeos do YouTube copiados serão baixados com as opções atuais. '
+                'Ative apenas para conteúdo autorizado. Continuar?'):
+            self.auto_download.set(False)
+            return
+        self.clipboard_watcher.reset(self.clipboard_text())
+
+    def poll_clipboard(self):
+        if self.auto_download.get():
+            url = self.clipboard_watcher.observe(self.clipboard_text(), busy=self.busy)
+            if url:
+                self.url.set(url)
+                self.start()
+        self.after(900, self.poll_clipboard)
 
     def paste(self):
         try:
