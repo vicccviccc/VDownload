@@ -1,4 +1,4 @@
-# VDownload 2.0
+# VDownload 2.1
 
 Aplicativo desktop em Python para baixar vídeos ou áudio do YouTube quando autorizado. Interface feita com Tkinter e baseada no [design do Figma](https://www.figma.com/design/IUDsW72Rh4VusCWsoogI4N?node-id=1-2).
 
@@ -45,16 +45,27 @@ python app.py
 
 Se ocorrer HTTP 403, atualize a biblioteca com `python -m pip install -U "yt-dlp[default]"`. Use apenas conteúdo cujo download seja autorizado.
 
+## Novidades da versão 2.1
+
+- Preferências de formato, resolução, FPS e pasta são salvas localmente.
+- Histórico dos últimos 100 downloads concluídos, com opção de reutilizar links ou apagar o histórico.
+- Cancelamento cooperativo durante o download. Uma operação de rede ou conversão já em andamento pode precisar terminar antes de responder ao cancelamento. Arquivos parciais podem permanecer para retomada.
+- Download automático opcional de novos links copiados do YouTube. A opção começa desligada em cada sessão e exige confirmação. O aplicativo ignora o link que já estava copiado ao ativar a função e não enfileira links copiados durante outro download.
+
+Os dados são gravados apenas no computador: em `%LOCALAPPDATA%/VDownload` no Windows ou `~/.local/share/VDownload` no Linux (respeitando `XDG_DATA_HOME`). A área de transferência só é monitorada quando a opção está ativa; textos que não sejam links válidos não são guardados nem enviados. Use somente conteúdo autorizado.
+
 ## Testes
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
 
-Interface verificada em Linux; download real e execução no Windows não verificados nesta versão.
+Os testes unitários não baixam vídeos reais. A interface e os downloads da versão 2.1 ainda precisam de validação manual no Windows e Linux.
 
 ## Estrutura do projeto
 
 - `app.py`: interface gráfica e controle dos eventos.
 - `downloader.py`: validação, formatos e integração com yt-dlp.
+- `storage.py`: preferências e histórico em JSON.
+- `clipboard_watch.py`: identificação de novos links copiados.
 - `tests/`: testes unitários que não dependem do YouTube.
