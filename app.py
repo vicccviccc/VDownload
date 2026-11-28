@@ -11,6 +11,8 @@ from tkinter import ttk, filedialog, messagebox
 from downloader import (VIDEO_QUALITIES, AUDIO_QUALITIES, FPS_OPTIONS, friendly_error, youtube_url,
                         missing_dependencies, download)
 
+from storage import LocalStore
+
 BG = '#11131B'
 PANEL = '#1B1E29'
 FIELD = '#141720'
@@ -31,11 +33,12 @@ class App(tk.Tk):
         self.configure(bg=BG)
         self.events = queue.Queue()
         self.busy = False
-        self.mode = tk.StringVar(value='MP4')
-        self.quality = tk.StringVar(value='1080p')
-        self.fps = tk.StringVar(value='Automático')
-        default = Path.home() / 'Downloads'
-        self.folder = tk.StringVar(value=str(default if default.is_dir() else Path.home()))
+        self.store = LocalStore()
+        preferences = self.store.preferences()
+        self.mode = tk.StringVar(value=preferences['mode'])
+        self.quality = tk.StringVar(value=preferences['quality'])
+        self.fps = tk.StringVar(value=preferences['fps'])
+        self.folder = tk.StringVar(value=preferences['folder'])
         self.url = tk.StringVar()
         self.status = tk.StringVar(value='Pronto para baixar')
         self.details = tk.StringVar(value='Cole um link para começar.')
@@ -45,6 +48,9 @@ class App(tk.Tk):
         self.eta = tk.StringVar(value='—')
         self._style()
         self._build()
+        self.change_format(reset_quality=False)
+        for variable in (self.mode, self.quality, self.fps, self.folder):
+            variable.trace_add('write', self.save_preferences)
         self.protocol('WM_DELETE_WINDOW', self.close)
         self.after(100, self.process_events)
 
@@ -192,10 +198,15 @@ class App(tk.Tk):
         except OSError as error:
             messagebox.showerror('Erro', str(error))
 
-    def change_format(self):
+    def save_preferences(self, *_args):
+        self.store.save_preferences({key: getattr(self, key).get()
+                                     for key in ('mode', 'quality', 'fps', 'folder')})
+
+    def change_format(self, reset_quality=True):
         audio = self.mode.get() == 'MP3'
         self.combo.configure(values=AUDIO_QUALITIES if audio else VIDEO_QUALITIES)
-        self.quality.set('192 kbps' if audio else '1080p')
+        if reset_quality:
+            self.quality.set('192 kbps' if audio else '1080p')
         self.quality_label.configure(text='Qualidade do áudio' if audio else 'Resolução')
         self.fps_combo.configure(state='disabled' if audio else 'readonly')
 
