@@ -103,7 +103,7 @@ class App(tk.Tk):
         brand = tk.Frame(top, bg=BG)
         brand.pack(side='left', padx=12)
         self.label(brand, 'VDownload', size=19, weight='bold').pack(anchor='w')
-        self.label(brand, 'DESKTOP / 2.0', size=9, color=MUTED).pack(anchor='w')
+        self.label(brand, 'DESKTOP / 2.1', size=9, color=MUTED).pack(anchor='w')
         self.button(top, 'Histórico', self.show_history).pack(side='right')
         tk.Frame(outer, bg=BORDER, height=1).pack(fill='x', pady=(16, 16))
         self.label(outer, 'Novo download', size=25, weight='bold').pack(anchor='w')
